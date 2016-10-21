@@ -1,6 +1,6 @@
 # ZackViewer
 Very Basic application that allows to **show** and **save** files using the Windows Imaging Component (WIC) API.
-It shows animated GIF and, if the FlifWICCodec(https://github.com/peirick/FlifWICCodec) is installed, animated FLIF files. 
+It shows animated GIF and, if the [FlifWICCodec](https://github.com/peirick/FlifWICCodec) is installed, animated FLIF files. 
 It also supports JPEG files and multipage TIFF.
 
 It is based on [Windows Imaging Component Animated GIF Win32 Sample](https://code.msdn.microsoft.com/windowsapps/Windows-Imaging-Component-65abbc6a)
