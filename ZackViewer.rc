@@ -1,0 +1,19 @@
+// Microsoft Visual C++ generated resource script.
+//
+#include "resource.h"
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// Menu
+//
+
+IDR_WICANIMATEDGIF MENU
+BEGIN
+    POPUP "&File"
+    BEGIN
+		MENUITEM "Open...", IDM_FILE_OPEN
+        MENUITEM "Save...",                     IDM_FILE_SAVE
+        MENUITEM SEPARATOR
+        MENUITEM "Exit",                        IDM_EXIT
+    END
+END
