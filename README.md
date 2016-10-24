@@ -8,7 +8,7 @@ It is based on [Windows Imaging Component Animated GIF Win32 Sample](https://cod
 ## Help
 
 Use your keyboard keys *PageUp* and *PageDown* to navigate between pages in a multipage TIFF.
-Use your keyboard keys 'Home* and *End* to navigate to the first or last page of a multipage TIFF.
+Use your keyboard keys *Home* and *End* to navigate to the first or last page of a multipage TIFF.
 
 ## Install WIC-Codecs to get support for more image formats
 
