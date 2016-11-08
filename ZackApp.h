@@ -11,6 +11,7 @@
 #include "resource.h"
 #include "ComPtr.h"
 #include "ImageInfo.h"
+#include "ShellNavigator.h"
 
 const float DEFAULT_DPI = 96.f;   // Default DPI that maps image resolution directly to screen resoltuion
 
@@ -34,7 +35,9 @@ public:
 
 private:
 
-
+    // No copy and assign.
+    ZackApp(const ZackApp&) = delete;
+    void operator=(const ZackApp&) = delete;
 
     HRESULT CreateDeviceResources();
     HRESULT RecoverDeviceResources();
@@ -42,7 +45,7 @@ private:
     HRESULT OnResize(UINT uWidth, UINT uHeight);
     HRESULT OnRender();
 
-    bool    OpenImageFile(WCHAR * pszFileName, DWORD cchFileName) const;
+    bool    SelectImageFile(IShellItem** imageFile) const;
     bool	GetFileSave(WCHAR * pszFileName, DWORD cchFileName, GUID& containerformat) const;
     HRESULT SelectAndDisplayFile();
     HRESULT SelectAndSaveFile();
@@ -54,6 +57,9 @@ private:
     HRESULT OverlayNextFrame();
 
     HRESULT SaveComposedFrame();
+    void UpdateCaption();
+    void CleanDisplay();
+    HRESULT DisplayImage();
     HRESULT RestoreSavedFrame();
     HRESULT ClearCurrentFrameArea();
 
@@ -62,13 +68,15 @@ private:
     bool EndOfAnimation() const;
 
     HRESULT CalculateDrawRectangle(D2D1_RECT_F &drawRect) const;
-
+           
     LRESULT WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
     static LRESULT CALLBACK s_WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
     bool ShowFirstPage();
     bool ShowLastPage();
     bool ShowNextPage();
     bool ShowPreviousPage();
+    bool ShowPreviousFile();
+    bool ShowNextFile();
 private:
 
     HWND                        m_hWnd;
@@ -79,10 +87,12 @@ private:
     ComPtr<ID2D1Bitmap>              m_pRawFrame;
     ComPtr<ID2D1Bitmap>              m_pSavedFrame;          // The temporary bitmap used for disposal 3 method
     ComPtr<IWICBitmapDecoder>        m_pDecoder;
+    ComPtr<IShellItem>               m_imageFile;
 
     DISPOSAL_METHODS uFrameDisposal;
     unsigned int     uFrameDelay;
 
+    ShellNavigator  m_shellNavigator;
     ImageInfo       m_imageInfo;
     unsigned int    m_uLoopNumber;      // The current animation loop number (e.g. 1 when the animation is first played)
     unsigned int    m_uNextFrameIndex;

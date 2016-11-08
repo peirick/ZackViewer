@@ -5,6 +5,8 @@
 #include <d2d1.h>
 #include <string>
 #include <vector>
+#include <shlobj.h>
+#include <shlwapi.h>    
 #include "ZackApp.h"
 #include "ImagingFactorySingleton.h"
 
@@ -274,22 +276,35 @@ HRESULT ZackApp::OnRender()
         out.resize(strLen - 1);                 \
     } else { out = L""; } } while(0);
 
-bool ZackApp::OpenImageFile(WCHAR *pszFileName, DWORD cchFileName) const
+bool ZackApp::SelectImageFile(IShellItem** imageFile) const
 {
-    pszFileName[0] = L'\0';
+    *imageFile = nullptr;
+    HRESULT hr = S_OK;
+    ComPtr<IFileOpenDialog> fileOpenDialog;
+    COMDLG_FILTERSPEC fileTypes[] = {
+        { L"All files", L"*.*" }
+    };
 
-    OPENFILENAME ofn;
-    RtlZeroMemory(&ofn, sizeof(ofn));
-    ofn.lStructSize = sizeof(ofn);
-    ofn.hwndOwner = m_hWnd;
-    ofn.lpstrFilter = L"All files (*.*)\0*.*\0";
-    ofn.lpstrFile = pszFileName;
-    ofn.nMaxFile = cchFileName;
-    ofn.lpstrTitle = L"Open Image";
-    ofn.Flags = OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST;
+    // Create the FileOpenDialog object.
+    CoCreateInstance(
+        CLSID_FileOpenDialog,
+        nullptr,
+        CLSCTX_ALL,
+        IID_PPV_ARGS(fileOpenDialog.get_out_storage()));
+    if (FAILED(hr))
+        return false;
 
-    // Display the Open dialog box.
-    return (GetOpenFileName(&ofn) == TRUE);
+    fileOpenDialog->SetFileTypes(_countof(fileTypes), fileTypes);
+    fileOpenDialog->SetTitle(L"Open Image");
+    hr = fileOpenDialog->Show(m_hWnd);
+    if (FAILED(hr))
+        return false;
+
+    hr = fileOpenDialog->GetResult(imageFile);
+    if (FAILED(hr))
+        return false;
+
+    return imageFile != nullptr;
 }
 
 void replaceAll(std::wstring& str, const std::wstring& from, const std::wstring& to) {
@@ -344,7 +359,7 @@ bool ZackApp::GetFileSave(WCHAR *pszFileName, DWORD cchFileName, GUID& container
     }
 
     std::wstring filter;
-    for (int i = 0; i < encoderNames.size(); ++i) {
+    for (size_t i = 0; i < encoderNames.size(); ++i) {
         filter += encoderNames[i] + L" (" + fileExtensions[i] + L")" + L'\0' + fileExtensions[i] + L'\0';
     }
     filter += L'\0';
@@ -380,8 +395,6 @@ bool ZackApp::GetFileSave(WCHAR *pszFileName, DWORD cchFileName, GUID& container
 
 HRESULT ZackApp::OnResize(UINT uWidth, UINT uHeight)
 {
-    HRESULT hr = S_OK;
-
     if (!m_pHwndRT.get())
         return S_OK;
 
@@ -488,6 +501,66 @@ bool ZackApp::ShowPreviousPage()
     return false;
 }
 
+bool ZackApp::ShowPreviousFile()
+{
+    CleanDisplay();
+    do {
+        if (!m_shellNavigator.GetPrevious(m_imageFile.get_out_storage()))
+            return false;
+
+        HRESULT hr;
+        LPWSTR filename = nullptr;
+        hr = m_imageFile->GetDisplayName(SIGDN_FILESYSPATH, &filename);
+        if (FAILED(hr))
+            return false;
+        hr = ImagingFactorySingleton::GetInstance()->CreateDecoderFromFilename(
+            filename,
+            nullptr,
+            GENERIC_READ,
+            WICDecodeMetadataCacheOnLoad,
+            m_pDecoder.get_out_storage());
+        CoTaskMemFree(filename);
+
+        if (SUCCEEDED(hr))
+        {
+            UpdateCaption();
+            DisplayImage();
+            return true;
+        }
+
+    } while (true);
+}
+
+bool ZackApp::ShowNextFile()
+{
+    CleanDisplay();
+    do {
+        if (!m_shellNavigator.GetNext(m_imageFile.get_out_storage()))
+            return false;
+
+        HRESULT hr;
+        LPWSTR filename = nullptr;
+        hr = m_imageFile->GetDisplayName(SIGDN_FILESYSPATH, &filename);
+        if (FAILED(hr))
+            return false;
+        hr = ImagingFactorySingleton::GetInstance()->CreateDecoderFromFilename(
+            filename,
+            nullptr,
+            GENERIC_READ,
+            WICDecodeMetadataCacheOnLoad,
+            m_pDecoder.get_out_storage());
+        CoTaskMemFree(filename);
+
+        if (SUCCEEDED(hr))
+        {
+            UpdateCaption();
+            DisplayImage();
+            return true;
+        }
+
+    } while (true);
+}
+
 LRESULT ZackApp::WndProc(
     HWND hWnd,
     UINT uMsg,
@@ -542,6 +615,15 @@ LRESULT ZackApp::WndProc(
             if (ShowPreviousPage())
                 return 0;
             break;
+        case VK_LEFT:
+            if (ShowPreviousFile())
+                return 0;
+            break;
+        case VK_RIGHT:
+            if (ShowNextFile())
+                return 0;
+            break;
+
         }
     }
     break;
@@ -1048,90 +1130,106 @@ HRESULT ZackApp::SaveComposedFrame()
 }
 
 
+void ZackApp::UpdateCaption()
+{
+    LPWSTR displayName = nullptr;
+    if (SUCCEEDED(m_imageFile->GetDisplayName(SIGDN_NORMALDISPLAY, &displayName))) {
+        WCHAR newCaption[MAX_PATH] = {};
+        swprintf_s(newCaption, L"Zack Viewer (\"%s\")", displayName);
+        CoTaskMemFree(displayName);
+        SetWindowText(m_hWnd, newCaption);
+    }
+}
+
+void ZackApp::CleanDisplay()
+{
+    // Reset the states
+    m_uNextFrameIndex = 0;
+    uFrameDisposal = DM_NONE;  // No previous frame, use disposal none
+    m_uLoopNumber = 0;
+    m_imageInfo.Reset();
+    m_pSavedFrame.reset(nullptr);
+
+    // Create a decoder for the gif file
+    m_pDecoder.reset(nullptr);
+}
+
+HRESULT ZackApp::DisplayImage()
+{
+    HRESULT hr = S_OK;
+
+    if (FAILED(m_imageInfo.GetGlobalMetadata(m_pDecoder.get())))
+    {
+        hr = m_imageInfo.GetDefaultMetadata(m_pDecoder.get());
+        if (FAILED(hr))
+            return hr;
+    }
+
+    RECT rcClient = {};
+    RECT rcWindow = {};
+    rcClient.right = m_imageInfo.getImageWidthPixel();
+    rcClient.bottom = m_imageInfo.getImageHeightPixel();
+
+    if (!AdjustWindowRect(&rcClient, WS_OVERLAPPEDWINDOW, TRUE))
+    {
+        hr = HRESULT_FROM_WIN32(GetLastError());
+        if (FAILED(hr))
+            return hr;
+    }
+
+    // Get the upper left corner of the current window
+    if (!GetWindowRect(m_hWnd, &rcWindow))
+    {
+        hr = HRESULT_FROM_WIN32(GetLastError());
+        if (FAILED(hr))
+            return hr;
+    }
+
+    hr = CreateDeviceResources();
+    if (FAILED(hr))
+        return hr;
+
+
+    // If we have at least one frame, start playing
+    // the animation from the first frame
+    if (m_imageInfo.getFrameCount() > 0)
+    {
+        hr = ComposeNextFrame();
+        InvalidateRect(m_hWnd, nullptr, FALSE);
+    }
+
+    return hr;
+}
+
 HRESULT ZackApp::SelectAndDisplayFile()
 {
     HRESULT hr = S_OK;
 
-    WCHAR szFileName[MAX_PATH] = {};
-    RECT rcClient = {};
-    RECT rcWindow = {};
-
     // If the user cancels selection, then nothing happens
-    if (OpenImageFile(szFileName, ARRAYSIZE(szFileName)))
+    if (SelectImageFile(m_imageFile.get_out_storage()))
     {
-        WCHAR newCaption[MAX_PATH] = {};
-        WCHAR fileName[MAX_PATH] = {};
-        WCHAR fileExt[MAX_PATH] = {};
-        _wsplitpath_s(szFileName, nullptr, 0, nullptr, 0, fileName, MAX_PATH, fileExt, MAX_PATH);
-        swprintf_s(newCaption, L"Zack Viewer (\"%s%s\")", fileName, fileExt);
-        SetWindowText(m_hWnd, newCaption);
 
+        UpdateCaption();
+        m_shellNavigator.Reset(m_imageFile.get());
+        CleanDisplay();
 
-        // Reset the states
-        m_uNextFrameIndex = 0;
-        uFrameDisposal = DM_NONE;  // No previous frame, use disposal none
-        m_uLoopNumber = 0;
-        m_imageInfo.Reset();
-        m_pSavedFrame.reset(nullptr);
-
-        // Create a decoder for the gif file
-        m_pDecoder.reset(nullptr);
-        hr = ImagingFactorySingleton::GetInstance()->CreateDecoderFromFilename(
-            szFileName,
-            nullptr,
-            GENERIC_READ,
-            WICDecodeMetadataCacheOnLoad,
-            m_pDecoder.get_out_storage());
-        if (FAILED(hr))
-            return hr;
-
-
-        if (FAILED(m_imageInfo.GetGlobalMetadata(m_pDecoder.get())))
         {
-            hr = m_imageInfo.GetDefaultMetadata(m_pDecoder.get());
+            LPWSTR filename = nullptr;
+            m_imageFile->GetDisplayName(SIGDN_FILESYSPATH, &filename);
+            if (FAILED(hr))
+                return hr;
+            hr = ImagingFactorySingleton::GetInstance()->CreateDecoderFromFilename(
+                filename,
+                nullptr,
+                GENERIC_READ,
+                WICDecodeMetadataCacheOnLoad,
+                m_pDecoder.get_out_storage());
+            CoTaskMemFree(filename);
             if (FAILED(hr))
                 return hr;
         }
 
-        rcClient.right = m_imageInfo.getImageWidthPixel();
-        rcClient.bottom = m_imageInfo.getImageHeightPixel();
-
-        if (!AdjustWindowRect(&rcClient, WS_OVERLAPPEDWINDOW, TRUE))
-        {
-            hr = HRESULT_FROM_WIN32(GetLastError());
-            if (FAILED(hr))
-                return hr;
-        }
-
-        // Get the upper left corner of the current window
-        if (!GetWindowRect(m_hWnd, &rcWindow))
-        {
-            hr = HRESULT_FROM_WIN32(GetLastError());
-            if (FAILED(hr))
-                return hr;
-        }
-
-        // Resize the window to fit the gif
-   /*     MoveWindow(
-            m_hWnd,
-            rcWindow.left,
-            rcWindow.top,
-            RectWidth(rcClient),
-            RectHeight(rcClient),
-            TRUE);*/
-
-        hr = CreateDeviceResources();
-        if (FAILED(hr))
-            return hr;
-
-
-        // If we have at least one frame, start playing
-        // the animation from the first frame
-        if (m_imageInfo.getFrameCount() > 0)
-        {
-            hr = ComposeNextFrame();
-            InvalidateRect(m_hWnd, nullptr, FALSE);
-        }
+        hr = DisplayImage();
     }
 
     return hr;

@@ -12,6 +12,7 @@
     <ClInclude Include="ComPtr.h" />
     <ClInclude Include="resource.h" />
     <ClInclude Include="ImagingFactorySingleton.h" />
+    <ClInclude Include="ShellNavigator.h" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="ZackViewer.rc">
@@ -22,6 +23,7 @@
     <ClCompile Include="ZackApp.cpp" />
     <ClCompile Include="ImageInfo.cpp" />
     <ClCompile Include="ImagingFactorySingleton.cpp" />
+    <ClCompile Include="ShellNavigator.cpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="README.md" />

@@ -166,11 +166,13 @@
     <ClInclude Include="ImagingFactorySingleton.h" />
     <ClInclude Include="ImageInfo.h" />
     <ClInclude Include="resource.h" />
+    <ClInclude Include="ShellNavigator.h" />
     <ClInclude Include="ZackApp.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="ImagingFactorySingleton.cpp" />
     <ClCompile Include="ImageInfo.cpp" />
+    <ClCompile Include="ShellNavigator.cpp" />
     <ClCompile Include="ZackApp.cpp" />
   </ItemGroup>
   <ItemGroup>
