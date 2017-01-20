@@ -5,6 +5,10 @@ It also supports JPEG files and multipage TIFF.
 
 It is based on [Windows Imaging Component Animated GIF Win32 Sample](https://code.msdn.microsoft.com/windowsapps/Windows-Imaging-Component-65abbc6a)
 
+## Contribution 
+
+Every help ist wanted. Feel free to fork and send merge request.
+
 ## Help
 
 Use your keyboard keys *PageUp* and *PageDown* to navigate between pages in a multipage TIFF.
