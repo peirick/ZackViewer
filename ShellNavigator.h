@@ -2,6 +2,7 @@
 #include "ComPtr.h"
 #include <shobjidl.h>
 #include <deque>
+#include <string>
 
 class ShellNavigator
 {
